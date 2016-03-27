@@ -31,6 +31,37 @@ func init() {
 	}
 }
 
+func main() {
+	err := stdout()
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func stdout() error {
+	uri, err := soap.ParseURL(*uri)
+	if err != nil {
+		return err
+	}
+	c, err := govmomi.NewClient(ctx, uri, true)
+	if err != nil {
+		return err
+	}
+	s := object.NewSearchIndex(c.Client)
+	ref, err := s.FindByInventoryPath(ctx, *path)
+	if err != nil {
+		return err
+	}
+	err = walk(ref)
+	if err != nil {
+		return err
+	}
+	if *csv {
+		return nil
+	}
+	return json.NewEncoder(os.Stdout).Encode(db)
+}
+
 func walk(ref object.Reference) error {
 	switch elt := ref.(type) {
 
@@ -96,35 +127,4 @@ func walk(ref object.Reference) error {
 
 	}
 	return nil
-}
-
-func stdout() error {
-	uri, err := soap.ParseURL(*uri)
-	if err != nil {
-		return err
-	}
-	c, err := govmomi.NewClient(ctx, uri, true)
-	if err != nil {
-		return err
-	}
-	s := object.NewSearchIndex(c.Client)
-	ref, err := s.FindByInventoryPath(ctx, *path)
-	if err != nil {
-		return err
-	}
-	err = walk(ref)
-	if err != nil {
-		return err
-	}
-	if *csv {
-		return nil
-	}
-	return json.NewEncoder(os.Stdout).Encode(db)
-}
-
-func main() {
-	err := stdout()
-	if err != nil {
-		log.Println(err)
-	}
 }
