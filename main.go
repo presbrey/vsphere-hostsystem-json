@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 
@@ -14,8 +15,9 @@ import (
 )
 
 var (
-	uri  = flag.String("uri", os.Getenv("URI"), "vSphere URI (or $URI)\n\teg. https://user:pass@vsphere/sdk")
+	csv  = flag.Bool("csv", false, "")
 	path = flag.String("path", "/", "vSphere Inventory Root")
+	uri  = flag.String("uri", os.Getenv("URI"), "vSphere URI (or $URI)\n\teg. https://user:pass@vsphere/sdk")
 
 	ctx = context.Background()
 	db  = map[string]map[string][]string{}
@@ -57,6 +59,11 @@ func walk(ref object.Reference) error {
 			return err
 		}
 
+		name, err := elt.Name(ctx)
+		if err != nil {
+			return err
+		}
+
 		netmap := map[string][]string{}
 		for _, nic := range mvm.Guest.Net {
 			if nic.IpConfig == nil {
@@ -67,13 +74,12 @@ func walk(ref object.Reference) error {
 			}
 			for _, ip := range nic.IpConfig.IpAddress {
 				netmap[nic.MacAddress] = append(netmap[nic.MacAddress], ip.IpAddress)
+				if *csv {
+					fmt.Println(name + "\t" + nic.MacAddress + "\t" + ip.IpAddress)
+				}
 			}
 		}
 
-		name, err := elt.Name(ctx)
-		if err != nil {
-			return err
-		}
 		if _, ex := db[name]; !ex {
 			db[name] = map[string][]string{}
 		}
@@ -94,6 +100,9 @@ func stdout() error {
 			s := object.NewSearchIndex(c.Client)
 			if ref, err := s.FindByInventoryPath(ctx, *path); err == nil {
 				if err = walk(ref); err == nil {
+					if *csv {
+						return nil
+					}
 					return json.NewEncoder(os.Stdout).Encode(db)
 				}
 			}
