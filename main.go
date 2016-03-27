@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	csv  = flag.Bool("csv", false, "")
+	csv  = flag.Bool("csv", false, "output csv instead of json")
 	path = flag.String("path", "/", "vSphere Inventory Root")
-	uri  = flag.String("uri", os.Getenv("URI"), "vSphere URI (or $URI)\n\teg. https://user:pass@vsphere/sdk")
+	uri  = flag.String("uri", "https://user:password@vsphere/sdk", "vSphere URI (or $URI)")
 
 	ctx = context.Background()
 	db  = map[string]map[string][]string{}
@@ -25,6 +25,10 @@ var (
 
 func init() {
 	flag.Parse()
+	v := os.Getenv("URI")
+	if v != "" {
+		*uri = v
+	}
 }
 
 func walk(ref object.Reference) error {
@@ -95,20 +99,27 @@ func walk(ref object.Reference) error {
 }
 
 func stdout() error {
-	if uri, err := soap.ParseURL(*uri); err == nil {
-		if c, err := govmomi.NewClient(ctx, uri, true); err == nil {
-			s := object.NewSearchIndex(c.Client)
-			if ref, err := s.FindByInventoryPath(ctx, *path); err == nil {
-				if err = walk(ref); err == nil {
-					if *csv {
-						return nil
-					}
-					return json.NewEncoder(os.Stdout).Encode(db)
-				}
-			}
-		}
+	uri, err := soap.ParseURL(*uri)
+	if err != nil {
+		return err
 	}
-	return nil
+	c, err := govmomi.NewClient(ctx, uri, true)
+	if err != nil {
+		return err
+	}
+	s := object.NewSearchIndex(c.Client)
+	ref, err := s.FindByInventoryPath(ctx, *path)
+	if err != nil {
+		return err
+	}
+	err = walk(ref)
+	if err != nil {
+		return err
+	}
+	if *csv {
+		return nil
+	}
+	return json.NewEncoder(os.Stdout).Encode(db)
 }
 
 func main() {
