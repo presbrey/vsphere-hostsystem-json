@@ -20,7 +20,7 @@ var (
 	uri  = flag.String("uri", "https://user:password@vsphere/sdk", "vSphere URI (or $URI)")
 
 	ctx = context.Background()
-	db  = map[string]map[string][]string{}
+	db  = map[string]string{}
 )
 
 func init() {
@@ -89,7 +89,7 @@ func walk(ref object.Reference) error {
 
 	case *object.VirtualMachine:
 		var mvm mo.VirtualMachine
-		err := elt.Properties(ctx, elt.Reference(), []string{"guest"}, &mvm)
+		err := elt.Properties(ctx, elt.Reference(), []string{"runtime"}, &mvm)
 		if err != nil {
 			return err
 		}
@@ -99,27 +99,13 @@ func walk(ref object.Reference) error {
 			return err
 		}
 
-		netmap := map[string][]string{}
-		for _, nic := range mvm.Guest.Net {
-			if nic.IpConfig == nil {
-				continue
+		var mhost []mo.HostSystem
+		err = elt.Properties(ctx, *mvm.Runtime.Host, []string{"summary"}, &mhost)
+		if err == nil {
+			db[name] = mhost[0].Summary.Config.Name
+			if *csv {
+				fmt.Println(name + "\t" + mhost[0].Summary.Config.Name)
 			}
-			if _, ex := netmap[nic.MacAddress]; !ex {
-				netmap[nic.MacAddress] = []string{}
-			}
-			for _, ip := range nic.IpConfig.IpAddress {
-				netmap[nic.MacAddress] = append(netmap[nic.MacAddress], ip.IpAddress)
-				if *csv {
-					fmt.Println(name + "\t" + nic.MacAddress + "\t" + ip.IpAddress)
-				}
-			}
-		}
-
-		if _, ex := db[name]; !ex {
-			db[name] = map[string][]string{}
-		}
-		for k, v := range netmap {
-			db[name][k] = v
 		}
 
 	default:
