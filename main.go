@@ -100,6 +100,9 @@ func walk(ref object.Reference) error {
 		}
 
 		var mhost []mo.HostSystem
+		if mvm.Runtime.Host == nil {
+			return nil
+		}
 		err = elt.Properties(ctx, *mvm.Runtime.Host, []string{"summary"}, &mhost)
 		if err == nil {
 			db[name] = mhost[0].Summary.Config.Name
